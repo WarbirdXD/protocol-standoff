@@ -1,6 +1,6 @@
 # Protocol Standoff - Scripts Overview
 
-**Last Updated:** January 17, 2026
+**Last Updated:** April 1, 2026
 
 ## 📁 Project Structure
 
@@ -29,9 +29,17 @@ scripts/
 │   ├── MatchmakingManager.cs
 │   ├── RankingSystem.cs
 │   ├── SecurityManager.cs
-│   ├── DynamicSpawnSystem.cs
+│   ├── DynamicSpawnSystem.cs (Firebase-enhanced)
 │   ├── OnlinePlayersTracker.cs
-│   └── UnityMainThreadDispatcher.cs
+│   ├── UnityMainThreadDispatcher.cs
+│   └── ResearchSpawnSystem/
+│       ├── FirebaseSpawnAnalytics.cs
+│       ├── FirebaseTemporalSafety.cs
+│       ├── AdvancedEnemyPredictor.cs
+│       ├── SpawnQualityAnalyzer.cs
+│       ├── TemporalSafetyTracker.cs
+│       ├── SpawnSystemIntegrationExample.cs
+│       └── EnemyPrediction_Research_Enhancement.md
 ├── Networking/
 │   ├── EOSNetcodeTransport.cs
 │   ├── SimpleEOSManager.cs
@@ -111,11 +119,19 @@ scripts/
 - **Server Validation** - Match result validation before MMR changes
 - **Firebase Logging** - All security events logged and categorized
 
-### Dynamic Spawn System (DynamicSpawnSystem.cs)
+### Dynamic Spawn System (DynamicSpawnSystem.cs) 🔬 RESEARCH-ENHANCED
 - **Procedural spawn generation** - No static spawn points
 - **Smart scoring system** - Distance, line of sight, combat zones
 - **Team spawning** - Spawns near teammate but spread out
 - **Anti-pattern system** - Prevents repetitive spawns
+- **🆕 Firebase Cloud Learning** - Learns from all players globally
+- **🆕 Spawn Quality Analytics** - Tracks time-to-first-damage, survival time
+- **🆕 Temporal Safety Tracking** - Prevents spawn kills with 8-second decay
+- **🆕 Advanced Enemy Prediction** - Multi-algorithm movement prediction
+  - Velocity-based prediction (40% weight)
+  - Behavior analysis (Aggressive, Defensive, Flanking, Camping)
+  - Map-aware prediction (cover, objectives)
+- **🆕 Cloud-based spawn kill prevention** - Global spawn kill zone detection
 
 ### Player Movement (FPSController.cs)
 - **BO6-style omni-movement** (slide, dive, prone)
@@ -131,6 +147,67 @@ scripts/
 - **Headshot detection** (2x damage)
 - **Reload system** with animations
 - **Extreme recoil** enables advanced movement techniques
+
+---
+
+## 🔬 Research Spawn System (ResearchSpawnSystem/)
+
+### Firebase Cloud Learning Components
+
+#### FirebaseSpawnAnalytics.cs
+- **Cloud-based spawn quality tracking** - Aggregates data from all players
+- **Spawn outcome analysis** - Time-to-first-damage, survival time, spawn kills
+- **Heatmap generation** - Identifies good and bad spawn locations
+- **Automatic data upload/download** - 30s upload, 60s download intervals
+- **Grid-based clustering** - 5-meter grid cells for location tracking
+
+#### FirebaseTemporalSafety.cs
+- **Global spawn kill zone detection** - Learns dangerous spawn locations
+- **Cloud-based risk scoring** - Aggregates spawn kill data from all matches
+- **Temporal danger tracking** - Recent combat intensity per location
+- **Automatic data sync** - 20s upload, 45s download intervals
+- **10-meter grid clustering** - For spawn kill zone identification
+
+### Local Analysis Components
+
+#### SpawnQualityAnalyzer.cs
+- **Local spawn tracking** - Records spawn events and outcomes
+- **Time-to-first-damage metrics** - Measures spawn safety
+- **Survival time tracking** - Evaluates spawn quality
+- **Spawn kill detection** - 3-second threshold
+- **Analytics reporting** - Detailed spawn quality reports
+
+#### TemporalSafetyTracker.cs
+- **Combat event tracking** - Deaths, damage, gunfire, explosions
+- **8-second decay system** - Based on Call of Duty research
+- **Spawn kill prevention** - Massive penalties for spawn kill zones
+- **Safety score calculation** - 0-100 score per location
+- **Real-time danger zones** - Dynamic combat intensity tracking
+
+#### AdvancedEnemyPredictor.cs
+- **Multi-algorithm prediction** - Combines 3 prediction methods
+- **Velocity-based prediction** - Tracks movement patterns (40% weight)
+- **Behavior analysis** - Detects 5 player types (30% weight):
+  - Aggressive (high speed, direct movement)
+  - Defensive (low speed, cover-seeking)
+  - Flanking (high direction variance)
+  - Camping (minimal movement)
+  - Balanced (mixed behavior)
+- **Map-aware prediction** - Considers cover and objectives (30% weight)
+- **Prediction confidence scoring** - Based on history and consistency
+- **Movement history tracking** - 10-position history per player
+
+#### SpawnSystemIntegrationExample.cs
+- **Integration guide** - Shows how to use the enhanced spawn system
+- **Event tracking examples** - Spawn, damage, death, kill events
+- **Analytics reporting** - How to retrieve spawn quality reports
+
+### Research Significance
+- **Based on industry research** - Valve's "Time to First Engagement" metrics
+- **Call of Duty's combat intensity** - 8-second decay system
+- **Machine learning ready** - Data structure supports future ML integration
+- **Global learning** - All players contribute to spawn quality improvement
+- **Adaptive system** - Learns and improves over time
 
 ---
 
