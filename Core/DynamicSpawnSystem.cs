@@ -959,6 +959,12 @@ public class DynamicSpawnSystem : MonoBehaviour
             qualityAnalyzer.RegisterSpawn(player, spawnData.Value.position);
         }
         
+        // Track spawn for temporal safety
+        if (spawnData.HasValue && safetyTracker != null)
+        {
+            safetyTracker.TrackPlayerSpawn(player);
+        }
+        
         if (spawnData.HasValue)
         {
             // Teleport player

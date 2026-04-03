@@ -31,6 +31,8 @@ public class PlayerHealth : NetworkBehaviour
     private NetworkVariable<bool> isDead = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private Vector3 deathLocation;
     private DynamicSpawnSystem dynamicSpawnSystem;
+    private SpawnQualityAnalyzer qualityAnalyzer;
+    private TemporalSafetyTracker safetyTracker;
     private float timeSinceLastDamage = 0f;
     
     // Stats tracking (networked)
@@ -75,13 +77,32 @@ public class PlayerHealth : NetworkBehaviour
         // Find dynamic spawn system (server only)
         if (IsServer)
         {
-            dynamicSpawnSystem = FindFirstObjectByType<DynamicSpawnSystem>();
-            animationSync = GetComponent<NetworkAnimationSync>();
-            audioManager = GetComponent<PlayerAudioManager>();
-            if (dynamicSpawnSystem == null)
-            {
-                Debug.LogWarning("PlayerHealth: No DynamicSpawnSystem found in scene!");
-            }
+            InitializeSpawnSystemReferences();
+        }
+    }
+    
+    /// <summary>
+    /// Initialize or re-initialize references to DynamicSpawnSystem and analytics components.
+    /// Called on spawn and whenever references become null (e.g., after starting a new match).
+    /// </summary>
+    private void InitializeSpawnSystemReferences()
+    {
+        dynamicSpawnSystem = FindFirstObjectByType<DynamicSpawnSystem>();
+        animationSync = GetComponent<NetworkAnimationSync>();
+        audioManager = GetComponent<PlayerAudioManager>();
+        
+        if (dynamicSpawnSystem == null)
+        {
+            Debug.LogWarning("PlayerHealth: No DynamicSpawnSystem found in scene!");
+            qualityAnalyzer = null;
+            safetyTracker = null;
+        }
+        else
+        {
+            // Get analytics components from spawn system
+            qualityAnalyzer = dynamicSpawnSystem.GetComponent<SpawnQualityAnalyzer>();
+            safetyTracker = dynamicSpawnSystem.GetComponent<TemporalSafetyTracker>();
+            Debug.Log("✅ PlayerHealth: DynamicSpawnSystem and analytics components initialized");
         }
     }
     
@@ -145,6 +166,12 @@ public class PlayerHealth : NetworkBehaviour
         
         // Reset regeneration timer
         timeSinceLastDamage = 0f;
+        
+        // Track damage with analytics
+        if (qualityAnalyzer != null)
+        {
+            qualityAnalyzer.RegisterDamage(gameObject);
+        }
         
         // Trigger damage animation on all clients
         if (animationSync != null)
@@ -211,6 +238,18 @@ public class PlayerHealth : NetworkBehaviour
         if (dynamicSpawnSystem != null)
         {
             dynamicSpawnSystem.RegisterDeath(deathLocation);
+        }
+        
+        // Track death with analytics
+        if (qualityAnalyzer != null)
+        {
+            qualityAnalyzer.RegisterDeath(gameObject);
+        }
+        
+        // Track combat event for temporal safety
+        if (safetyTracker != null)
+        {
+            safetyTracker.RegisterCombatEvent(deathLocation, TemporalSafetyTracker.CombatEventType.Death, 1f);
         }
         
         // Auto respawn after delay (server only)
@@ -371,12 +410,21 @@ public class PlayerHealth : NetworkBehaviour
     
     private void HandleRespawn()
     {
+        // Re-initialize spawn system references if they became null (e.g., new match started)
+        if (dynamicSpawnSystem == null)
+        {
+            Debug.Log("🔄 DynamicSpawnSystem is null, re-initializing references...");
+            InitializeSpawnSystemReferences();
+        }
+        
         if (dynamicSpawnSystem != null)
         {
+            Debug.Log($"<color=cyan>✅ Using DynamicSpawnSystem for respawn</color>");
             dynamicSpawnSystem.SpawnPlayer(gameObject, deathLocation);
         }
         else
         {
+            Debug.LogWarning($"⚠️ DynamicSpawnSystem is NULL even after re-initialization! Using fallback Respawn()");
             // Fallback: respawn at current position
             Respawn();
         }
@@ -417,6 +465,12 @@ public class PlayerHealth : NetworkBehaviour
         
         currentHealth.Value = maxHealth;
         isDead.Value = false;
+        
+        // Register spawn with analytics (critical for death tracking)
+        if (qualityAnalyzer != null)
+        {
+            qualityAnalyzer.RegisterSpawn(gameObject, finalPosition);
+        }
         
         // Notify clients of respawn with position and rotation
         NotifyRespawnClientRpc(finalPosition, finalRotation);
