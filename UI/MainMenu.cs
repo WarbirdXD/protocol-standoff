@@ -11,7 +11,11 @@ public class MainMenu : MonoBehaviour
     [Header("Main Menu Buttons")]
     public Button playButton;
     public Button accountButton;
+    public Button controlsButton;
     public Button quitButton;
+    
+    [Header("Controls Panel")]
+    public ControlsUI controlsUI;
     
     [Header("Scene Names")]
     public string lobbySceneName = "Lobby";
@@ -28,6 +32,9 @@ public class MainMenu : MonoBehaviour
         
         if (accountButton != null)
             accountButton.onClick.AddListener(OnAccountClicked);
+        
+        if (controlsButton != null)
+            controlsButton.onClick.AddListener(OnControlsClicked);
         
         if (quitButton != null)
             quitButton.onClick.AddListener(OnQuitClicked);
@@ -69,6 +76,9 @@ public class MainMenu : MonoBehaviour
         if (accountButton != null)
             accountButton.interactable = interactable;
         
+        if (controlsButton != null)
+            controlsButton.interactable = interactable;
+        
         if (quitButton != null)
             quitButton.interactable = interactable;
         
@@ -109,6 +119,15 @@ public class MainMenu : MonoBehaviour
     public void OnAccountClicked()
     {
         SceneManager.LoadScene(accountSceneName);
+    }
+    
+    /// <summary>
+    /// Show controls panel
+    /// </summary>
+    public void OnControlsClicked()
+    {
+        if (controlsUI != null)
+            controlsUI.Show();
     }
     
     /// <summary>
