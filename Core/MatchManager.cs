@@ -317,7 +317,7 @@ public class MatchManager : NetworkBehaviour
         {
             Debug.LogWarning($"Match start timeout! Only {readyPlayers.Count}/{expectedPlayerCount} players ready. Starting anyway...");
             waitingForPlayers = false;
-            StartMatch();
+            BeginMatchCountdown();
         }
     }
     

@@ -241,12 +241,14 @@ public class NetworkPlayer : NetworkBehaviour
     
     private void RegisterWithMatchManager(int team)
     {
+        if (!IsServer) return;
+        
         if (playerHealth != null)
         {
             MatchManager matchManager = FindFirstObjectByType<MatchManager>();
             if (matchManager != null)
             {
-                Debug.Log($"[CLIENT {NetworkManager.Singleton.LocalClientId}] Registering player with team {team}");
+                Debug.Log($"[SERVER] Registering player with team {team}");
                 matchManager.RegisterPlayer(playerHealth, team);
             }
         }

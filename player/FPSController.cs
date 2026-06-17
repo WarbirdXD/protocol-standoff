@@ -142,10 +142,6 @@ public class FPSController : MonoBehaviour
         // Reset camera pitch to look forward
         cameraPitch = 0f;
         targetCameraPitch = 0f;
-        
-        // Initialize controls (cursor lock and event subscriptions)
-        // This is needed because OnEnable() won't run if the component starts enabled
-        InitializeControls();
     }
     
     private void OnEnable()
@@ -240,13 +236,13 @@ public class FPSController : MonoBehaviour
             }
         }
         
-        UpdateSurfaceGravity();
-        
         // Only process input if this is the local player (owner)
         if (networkObject != null && !networkObject.IsOwner)
         {
             return; // Don't process input for remote players
         }
+        
+        UpdateSurfaceGravity();
         
         // Debug: Log once per second to verify Update is running and controlsFrozen state
         if (Time.frameCount % 60 == 0)

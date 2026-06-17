@@ -5,6 +5,7 @@ using Unity.Netcode;
 public class WeaponController : MonoBehaviour
 {
     private NetworkObject networkObject;
+    private bool showDebugLogs = false;
     [Header("References")]
     public Transform cameraTransform;
     public Transform muzzlePoint;          // Where bullets/tracers spawn from
@@ -194,8 +195,8 @@ public class WeaponController : MonoBehaviour
             matchManager.OnCountdown.AddListener(OnCountdownTick);
             matchManager.OnMatchStart.AddListener(OnMatchStart);
             
-            // Freeze controls if countdown is active
-            if (matchManager.useCountdown)
+            // Freeze controls if a countdown is currently running
+            if (matchManager.CountdownActive)
             {
                 controlsFrozen = true;
             }
@@ -414,7 +415,7 @@ public class WeaponController : MonoBehaviour
             if (targetHealth != null)
             {
                 // Pass attacker's client ID for kill tracking
-                ulong attackerClientId = networkObject != null ? networkObject.OwnerClientId : 0;
+                ulong attackerClientId = networkObject != null ? networkObject.OwnerClientId : ulong.MaxValue;
                 targetHealth.TakeDamage(currentDamage, isHeadshot, attackerClientId);
                 
                 // Show hit marker (only for enemies)
@@ -756,5 +757,4 @@ public class WeaponController : MonoBehaviour
         controlsFrozen = false;
     }
     
-    private bool showDebugLogs = false; // Set to true for debugging
 }

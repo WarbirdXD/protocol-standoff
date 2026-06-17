@@ -50,6 +50,12 @@ public class BulletTracer : MonoBehaviour
     
     private void Update()
     {
+        if (distance <= 0f)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        
         // Move tracer forward
         currentDistance += tracerSpeed * Time.deltaTime;
         

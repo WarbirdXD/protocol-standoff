@@ -58,8 +58,9 @@ public class PlayerHealth : NetworkBehaviour
     {
         base.OnNetworkSpawn();
         
-        // Get animation sync component
+        // Get animation sync and audio components for all clients
         animationSync = GetComponent<NetworkAnimationSync>();
+        audioManager = GetComponent<PlayerAudioManager>();
         
         // Subscribe to network variable changes
         currentHealth.OnValueChanged += OnHealthChangedNetwork;
@@ -74,7 +75,7 @@ public class PlayerHealth : NetworkBehaviour
         // Invoke initial health for UI
         OnHealthChanged?.Invoke(currentHealth.Value);
         
-        // Find dynamic spawn system (server only)
+        // Find dynamic spawn system and analytics references (server only)
         if (IsServer)
         {
             InitializeSpawnSystemReferences();
@@ -144,7 +145,7 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
     
-    public void TakeDamage(float damage, bool isHeadshot = false, ulong attackerClientId = 0)
+    public void TakeDamage(float damage, bool isHeadshot = false, ulong attackerClientId = ulong.MaxValue)
     {
         if (isDead.Value) return;
         
@@ -203,8 +204,12 @@ public class PlayerHealth : NetworkBehaviour
         // Instantly disable colliders so bullets pass through
         DisableColliders();
         
-        // Award kill to attacker and refill their ammo
-        if (attackerClientId != 0 && attackerClientId != OwnerClientId)
+        // Award kill to attacker and refill their ammo.
+        // attackerClientId == ulong.MaxValue means no attacker (environmental/default).
+        // Also verify the attacker is still connected before accessing ConnectedClients.
+        if (attackerClientId != ulong.MaxValue
+            && attackerClientId != OwnerClientId
+            && NetworkManager.Singleton.ConnectedClients.ContainsKey(attackerClientId))
         {
             var attacker = NetworkManager.Singleton.ConnectedClients[attackerClientId].PlayerObject;
             if (attacker != null)
@@ -252,8 +257,9 @@ public class PlayerHealth : NetworkBehaviour
             safetyTracker.RegisterCombatEvent(deathLocation, TemporalSafetyTracker.CombatEventType.Death, 1f);
         }
         
-        // Auto respawn after delay (server only)
-        if (autoRespawn)
+        // Auto respawn after delay (server only).
+        // Skip when MatchManager is active — it handles respawning via respawnTimers to avoid double respawn.
+        if (autoRespawn && (MatchManager.Instance == null || !MatchManager.Instance.IsMatchActive))
         {
             Invoke(nameof(HandleRespawn), respawnDelay);
         }
@@ -294,18 +300,16 @@ public class PlayerHealth : NetworkBehaviour
         // Only execute on the killer's client
         if (NetworkManager.Singleton.LocalClientId != killerClientId) return;
         
-        // Find the killer's player object
-        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(killerClientId, out var clientInfo))
+        // Use LocalClient.PlayerObject — ConnectedClients is server-only in NGO and
+        // will not contain the local client's entry on a non-host client.
+        var killerPlayer = NetworkManager.Singleton.LocalClient?.PlayerObject;
+        if (killerPlayer != null)
         {
-            var killerPlayer = clientInfo.PlayerObject;
-            if (killerPlayer != null)
+            var weaponController = killerPlayer.GetComponent<WeaponController>();
+            if (weaponController != null)
             {
-                var weaponController = killerPlayer.GetComponent<WeaponController>();
-                if (weaponController != null)
-                {
-                    weaponController.RefillAmmo();
-                    Debug.Log($"[CLIENT {killerClientId}] Kill reward: Ammo refilled!");
-                }
+                weaponController.RefillAmmo();
+                Debug.Log($"[CLIENT {killerClientId}] Kill reward: Ammo refilled!");
             }
         }
     }

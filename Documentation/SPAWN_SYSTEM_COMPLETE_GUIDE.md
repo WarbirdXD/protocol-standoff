@@ -987,8 +987,6 @@ public float GetPredictionConfidence(GameObject enemy)
 
 ### The 8-Second Decay Rule
 
-Based on Call of Duty research: **Combat intensity decays over 8 seconds**.
-
 ```csharp
 public class CombatEvent
 {
@@ -1061,7 +1059,6 @@ public void RegisterSpawnKill(Vector3 spawnPosition, Vector3 deathPosition, floa
 ### Research Justification
 
 **Why 8 Seconds?**
-- Activision research: Combat zones remain dangerous for ~8 seconds
 - Player movement speed: 6 m/s × 8s = 48 meters (typical engagement range)
 - Psychological: Players remember recent combat for 5-10 seconds
 

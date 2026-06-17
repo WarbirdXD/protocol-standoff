@@ -507,35 +507,41 @@ public class NetworkGameManager : MonoBehaviour
     {
         if (currentMatchData == null) return null;
         
-        int clientIndex = (int)clientId;
+        // Sort connected IDs so the mapping is based on connection order, not raw ID values.
+        // This stays correct even if a client reconnects and receives a non-sequential ID.
+        var sortedIds = new System.Collections.Generic.List<ulong>(NetworkManager.Singleton.ConnectedClientsIds);
+        sortedIds.Sort();
+        int clientIndex = sortedIds.IndexOf(clientId);
+        if (clientIndex < 0)
+        {
+            Debug.LogError($"Client {clientId} not found in connected clients list");
+            return null;
+        }
         
-        // For 1v1: Client 0 = Team 1, Client 1 = Team 2
-        // For 2v2: Client 0 = Team 1[0], Client 1 = Team 2[0], Client 2 = Team 1[1], Client 3 = Team 2[1]
-        
+        // For 1v1: index 0 = Team 1, index 1 = Team 2
+        // For 2v2: index 0 = Team 1[0], index 1 = Team 2[0], index 2 = Team 1[1], index 3 = Team 2[1]
         if (clientIndex % 2 == 0)
         {
-            // Even client IDs (0, 2, 4...) get Team 1 players
             int teamIndex = clientIndex / 2;
             if (teamIndex < currentMatchData.team1Players.Count)
             {
                 var player = currentMatchData.team1Players[teamIndex];
-                Debug.Log($"Client {clientId} → Team 1[{teamIndex}]: {player.playerName} (Firebase ID: {player.playerId})");
+                Debug.Log($"Client {clientId} (sorted index {clientIndex}) → Team 1[{teamIndex}]: {player.playerName}");
                 return player;
             }
         }
         else
         {
-            // Odd client IDs (1, 3, 5...) get Team 2 players
             int teamIndex = clientIndex / 2;
             if (teamIndex < currentMatchData.team2Players.Count)
             {
                 var player = currentMatchData.team2Players[teamIndex];
-                Debug.Log($"Client {clientId} → Team 2[{teamIndex}]: {player.playerName} (Firebase ID: {player.playerId})");
+                Debug.Log($"Client {clientId} (sorted index {clientIndex}) → Team 2[{teamIndex}]: {player.playerName}");
                 return player;
             }
         }
         
-        Debug.LogError($"Failed to find player data for client {clientId}");
+        Debug.LogError($"Failed to find player data for client {clientId} (sorted index {clientIndex})");
         return null;
     }
     
