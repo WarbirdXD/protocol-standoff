@@ -258,8 +258,9 @@ public class PlayerHealth : NetworkBehaviour
         }
         
         // Auto respawn after delay (server only).
-        // Skip when MatchManager is active — it handles respawning via respawnTimers to avoid double respawn.
-        if (autoRespawn && (MatchManager.Instance == null || !MatchManager.Instance.IsMatchActive))
+        // If MatchManager exists, always let it handle respawning (including during countdown).
+        // HandleRespawn is only used as a fallback when there is no MatchManager in the scene.
+        if (autoRespawn && MatchManager.Instance == null)
         {
             Invoke(nameof(HandleRespawn), respawnDelay);
         }

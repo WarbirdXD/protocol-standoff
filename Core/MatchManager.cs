@@ -354,7 +354,8 @@ public class MatchManager : NetworkBehaviour
     {
         // Only server should handle death logic
         if (!IsServer) return;
-        if (!matchActive.Value) return;
+        // Skip if neither the match nor the countdown is active (true pre-match, before StartMatch)
+        if (!matchActive.Value && !countdownActive.Value) return;
         
         // Find who killed them (for now, just award point to opposite team)
         // In a real implementation, you'd track the shooter

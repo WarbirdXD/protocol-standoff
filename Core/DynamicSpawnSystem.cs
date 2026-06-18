@@ -953,13 +953,10 @@ public class DynamicSpawnSystem : MonoBehaviour
     {
         var spawnData = GetBestSpawnPosition(player, deathLocation);
         
-        // Track spawn with analytics
-        if (spawnData.HasValue && qualityAnalyzer != null)
-        {
-            qualityAnalyzer.RegisterSpawn(player, spawnData.Value.position);
-        }
+        // Note: qualityAnalyzer.RegisterSpawn is handled inside PlayerHealth.Respawn() below,
+        // so we do NOT call it here to avoid double-registration.
         
-        // Track spawn for temporal safety
+        // Track spawn for temporal safety (Respawn() does not cover this)
         if (spawnData.HasValue && safetyTracker != null)
         {
             safetyTracker.TrackPlayerSpawn(player);
