@@ -221,7 +221,7 @@ public class DynamicSpawnSystem : MonoBehaviour
     /// Find the best dynamic spawn position for a player
     /// Returns position, rotation based on surface normal
     /// </summary>
-    public (Vector3 position, Quaternion rotation)? GetBestSpawnPosition(GameObject player, Vector3? deathLocation = null, GameObject teammate = null)
+    public (Vector3 position, Quaternion rotation)? GetBestSpawnPosition(GameObject player, Vector3? deathLocation = null, GameObject teammate = null, Dictionary<GameObject, (Vector3 pos, Vector3 fwd)> enemySnapshot = null)
     {
         CleanupOldData();
         
@@ -255,7 +255,7 @@ public class DynamicSpawnSystem : MonoBehaviour
         
         foreach (SpawnPoint candidate in candidates)
         {
-            float score = ScoreSpawnPosition(candidate.position, enemies, deathLocation, teammate);
+            float score = ScoreSpawnPosition(candidate.position, enemies, deathLocation, teammate, enemySnapshot);
             
             if (showDebugLogs)
             {
@@ -468,7 +468,7 @@ public class DynamicSpawnSystem : MonoBehaviour
     /// Score a spawn position based on game state and teammate position (for 2v2)
     /// NOW WITH FIREBASE CLOUD LEARNING!
     /// </summary>
-    private float ScoreSpawnPosition(Vector3 spawnPos, List<GameObject> enemies, Vector3? deathLocation, GameObject teammate = null)
+    private float ScoreSpawnPosition(Vector3 spawnPos, List<GameObject> enemies, Vector3? deathLocation, GameObject teammate = null, Dictionary<GameObject, (Vector3 pos, Vector3 fwd)> enemySnapshot = null)
     {
         float score = 100f;
         
@@ -585,8 +585,10 @@ public class DynamicSpawnSystem : MonoBehaviour
         {
             if (enemy == null) continue;
             
-            // Check current position
-            float currentDist = Vector3.Distance(spawnPos, enemy.transform.position);
+            // Check current (or death-time snapshot) position
+            Vector3 enemyPos = enemySnapshot != null && enemySnapshot.ContainsKey(enemy)
+                ? enemySnapshot[enemy].pos : enemy.transform.position;
+            float currentDist = Vector3.Distance(spawnPos, enemyPos);
             
             // Check predicted position if available
             float dist = currentDist;
@@ -623,8 +625,10 @@ public class DynamicSpawnSystem : MonoBehaviour
         // 2. Line of sight check (no spawn kills)
         if (requireCover && closestEnemy != null)
         {
-            // Check LOS to current position
-            Vector3 toEnemy = closestEnemy.transform.position - spawnPos;
+            // Check LOS to snapshot (or current) position
+            Vector3 closestEnemyPos = enemySnapshot != null && enemySnapshot.ContainsKey(closestEnemy)
+                ? enemySnapshot[closestEnemy].pos : closestEnemy.transform.position;
+            Vector3 toEnemy = closestEnemyPos - spawnPos;
             bool hasLOS = !Physics.Raycast(spawnPos + Vector3.up * 1.6f, toEnemy.normalized, toEnemy.magnitude, obstacleLayer);
             
             // Also check LOS to predicted position
@@ -655,26 +659,49 @@ public class DynamicSpawnSystem : MonoBehaviour
             foreach (GameObject enemy in enemies)
             {
                 if (enemy == null) continue;
-                
-                // Check if spawn is in enemy's FOV
-                if (IsInEnemyFOV(spawnPos, enemy))
+
+                // Use death-time snapshot when available (prevents look-direction exploit)
+                Vector3 fovPos = enemySnapshot != null && enemySnapshot.ContainsKey(enemy)
+                    ? enemySnapshot[enemy].pos : enemy.transform.position;
+                Vector3 fovFwd = enemySnapshot != null && enemySnapshot.ContainsKey(enemy)
+                    ? enemySnapshot[enemy].fwd
+                    : (enemy.GetComponent<FPSController>() is FPSController f ? f.LookForward : enemy.transform.forward);
+
+                if (IsInEnemyFOVAtPosition(spawnPos, fovPos, fovFwd))
                 {
                     score -= 150f; // Massive penalty for spawning in view
                 }
                 
-                // Check predicted position if available
+                // Check predicted position if available.
+                // Use travel direction as the predicted forward - a moving player looks where they're going.
                 if (predictedPositions.ContainsKey(enemy))
                 {
-                    if (IsInEnemyFOVAtPosition(spawnPos, enemy, predictedPositions[enemy]))
+                    Vector3 travelDir = predictedPositions[enemy] - fovPos;
+                    Vector3 predictedFwd = travelDir.sqrMagnitude > 0.01f ? travelDir.normalized : fovFwd;
+                    float confidence = predictionConfidence.ContainsKey(enemy) ? predictionConfidence[enemy] : 0.5f;
+
+                    if (IsInEnemyFOVAtPosition(spawnPos, predictedPositions[enemy], predictedFwd))
                     {
-                        // Scale penalty by prediction confidence
-                        float confidence = predictionConfidence.ContainsKey(enemy) ? predictionConfidence[enemy] : 0.5f;
-                        float penalty = 100f * confidence; // Higher confidence = higher penalty
+                        float penalty = 100f * confidence;
                         score -= penalty;
                         
                         if (showDebugLogs)
                         {
                             Debug.Log($"Predicted FOV penalty: {penalty:F1} (confidence: {confidence:P0})");
+                        }
+                    }
+
+                    // Also check the reverse look direction at half penalty.
+                    // After a kill, players frequently turn around to check behind them,
+                    // so a spawn that would be in their back-turn sightline is also risky.
+                    if (IsInEnemyFOVAtPosition(spawnPos, predictedPositions[enemy], -predictedFwd))
+                    {
+                        float penalty = 50f * confidence;
+                        score -= penalty;
+
+                        if (showDebugLogs)
+                        {
+                            Debug.Log($"Predicted reverse-FOV penalty: {penalty:F1} (confidence: {confidence:P0})");
                         }
                     }
                 }
@@ -684,9 +711,13 @@ public class DynamicSpawnSystem : MonoBehaviour
         // 3. Prevent back spawns (no spawning behind enemy)
         if (preventBackSpawns && closestEnemy != null)
         {
-            Vector3 enemyForward = closestEnemy.transform.forward;
-            Vector3 toSpawn = (spawnPos - closestEnemy.transform.position).normalized;
-            float dotProduct = Vector3.Dot(enemyForward, toSpawn);
+            Vector3 snappedPos = enemySnapshot != null && enemySnapshot.ContainsKey(closestEnemy)
+                ? enemySnapshot[closestEnemy].pos : closestEnemy.transform.position;
+            Vector3 snappedFwd = enemySnapshot != null && enemySnapshot.ContainsKey(closestEnemy)
+                ? enemySnapshot[closestEnemy].fwd
+                : (closestEnemy.GetComponent<FPSController>() is FPSController fc ? fc.LookForward : closestEnemy.transform.forward);
+            Vector3 toSpawn = (spawnPos - snappedPos).normalized;
+            float dotProduct = Vector3.Dot(snappedFwd, toSpawn);
             
             if (dotProduct < -0.2f) // Behind enemy
             {
@@ -737,7 +768,9 @@ public class DynamicSpawnSystem : MonoBehaviour
         // 7. Map control balance
         if (balanceMapControl && closestEnemy != null)
         {
-            float enemyDistToCenter = Vector3.Distance(closestEnemy.transform.position, mapCenter);
+            Vector3 balancePos = enemySnapshot != null && enemySnapshot.ContainsKey(closestEnemy)
+                ? enemySnapshot[closestEnemy].pos : closestEnemy.transform.position;
+            float enemyDistToCenter = Vector3.Distance(balancePos, mapCenter);
             float spawnDistToCenter = Vector3.Distance(spawnPos, mapCenter);
             
             // Reward balanced positioning
@@ -797,13 +830,15 @@ public class DynamicSpawnSystem : MonoBehaviour
     /// </summary>
     private bool IsInEnemyFOV(Vector3 spawnPos, GameObject enemy)
     {
-        return IsInEnemyFOVAtPosition(spawnPos, enemy, enemy.transform.position);
+        var fps = enemy.GetComponent<FPSController>();
+        Vector3 fwd = fps != null ? fps.LookForward : enemy.transform.forward;
+        return IsInEnemyFOVAtPosition(spawnPos, enemy.transform.position, fwd);
     }
     
     /// <summary>
     /// Check if a spawn position is within an enemy's FOV at a specific position
     /// </summary>
-    private bool IsInEnemyFOVAtPosition(Vector3 spawnPos, GameObject enemy, Vector3 enemyPosition)
+    private bool IsInEnemyFOVAtPosition(Vector3 spawnPos, Vector3 enemyPosition, Vector3 enemyForward)
     {
         Vector3 toSpawn = spawnPos - enemyPosition;
         float distance = toSpawn.magnitude;
@@ -812,8 +847,6 @@ public class DynamicSpawnSystem : MonoBehaviour
         if (distance > enemyFOVDistance)
             return false;
         
-        // Check angle
-        Vector3 enemyForward = enemy.transform.forward;
         float angle = Vector3.Angle(enemyForward, toSpawn.normalized);
         
         // Within FOV cone

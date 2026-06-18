@@ -99,6 +99,19 @@ public class FPSController : MonoBehaviour
     // Look
     private float cameraPitch;
     private float targetCameraPitch;
+    private NetworkVariable<float> networkedCameraPitch = new NetworkVariable<float>(
+        0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    
+    /// <summary>3D look direction combining body yaw + networked camera pitch. Safe to read server-side.</summary>
+    public Vector3 LookForward
+    {
+        get
+        {
+            Quaternion yaw   = Quaternion.Euler(0, transform.eulerAngles.y, 0);
+            Quaternion pitch = Quaternion.Euler(networkedCameraPitch.Value, 0, 0);
+            return yaw * pitch * Vector3.forward;
+        }
+    }
     
     public bool IsCharged => isCharged;
     public float ChargeProgress => Mathf.Clamp01(chargeTimer / chargeTime);
@@ -582,6 +595,7 @@ public class FPSController : MonoBehaviour
         targetCameraPitch -= lookY;
         targetCameraPitch = Mathf.Clamp(targetCameraPitch, -maxLookAngle, maxLookAngle);
         cameraPitch = targetCameraPitch;
+        if (IsOwner) networkedCameraPitch.Value = cameraPitch;
         
         // Apply rotation to camera and gun
         Quaternion pitchRotation = Quaternion.Euler(cameraPitch, 0, 0);

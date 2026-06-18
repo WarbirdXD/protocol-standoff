@@ -42,7 +42,14 @@ public class MatchManager : NetworkBehaviour
     private NetworkVariable<int> team2Score = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     
     private Dictionary<PlayerHealth, int> playerTeams = new Dictionary<PlayerHealth, int>();
-    private Dictionary<PlayerHealth, float> respawnTimers = new Dictionary<PlayerHealth, float>();
+
+    /// <summary>Snapshot of each enemy's world state taken at the moment the player died.</summary>
+    private struct RespawnData
+    {
+        public float spawnTime;
+        public Dictionary<GameObject, (Vector3 pos, Vector3 fwd)> enemySnapshot;
+    }
+    private Dictionary<PlayerHealth, RespawnData> respawnTimers = new Dictionary<PlayerHealth, RespawnData>();
     private Dictionary<PlayerHealth, string> playerIds = new Dictionary<PlayerHealth, string>();
     private HashSet<ulong> readyPlayers = new HashSet<ulong>();
     private int expectedPlayerCount = 0;
@@ -206,7 +213,7 @@ public class MatchManager : NetworkBehaviour
         List<PlayerHealth> toRespawn = new List<PlayerHealth>();
         foreach (var kvp in respawnTimers)
         {
-            if (kvp.Value <= Time.time)
+            if (kvp.Value.spawnTime <= Time.time)
             {
                 toRespawn.Add(kvp.Key);
             }
@@ -214,7 +221,7 @@ public class MatchManager : NetworkBehaviour
         
         foreach (var player in toRespawn)
         {
-            RespawnPlayer(player);
+            RespawnPlayer(player, respawnTimers[player].enemySnapshot);
             respawnTimers.Remove(player);
         }
     }
@@ -388,8 +395,21 @@ public class MatchManager : NetworkBehaviour
             }
         }
         
+        // Snapshot all living enemies at the moment of death so spawn scoring
+        // cannot be manipulated by moving/looking during the respawn window.
+        var snapshot = new Dictionary<GameObject, (Vector3 pos, Vector3 fwd)>();
+        foreach (var kvp in playerTeams)
+        {
+            if (kvp.Value != deadPlayerTeam && !kvp.Key.IsDead)
+            {
+                var fps = kvp.Key.GetComponent<FPSController>();
+                Vector3 fwd = fps != null ? fps.LookForward : kvp.Key.transform.forward;
+                snapshot[kvp.Key.gameObject] = (kvp.Key.transform.position, fwd);
+            }
+        }
+
         // Schedule respawn
-        respawnTimers[deadPlayer] = Time.time + respawnDelay;
+        respawnTimers[deadPlayer] = new RespawnData { spawnTime = Time.time + respawnDelay, enemySnapshot = snapshot };
         
         Debug.Log($"Player on Team {deadPlayerTeam} died. Team {scoringTeam} scores! Headshot: {wasHeadshot}");
     }
@@ -409,7 +429,7 @@ public class MatchManager : NetworkBehaviour
         // NetworkVariable change callbacks will automatically notify all clients
     }
     
-    private void RespawnPlayer(PlayerHealth player)
+    private void RespawnPlayer(PlayerHealth player, Dictionary<GameObject, (Vector3 pos, Vector3 fwd)> enemySnapshot = null)
     {
         if (!playerTeams.ContainsKey(player)) return;
         
@@ -425,7 +445,7 @@ public class MatchManager : NetworkBehaviour
             Vector3? deathLocation = player.transform.position;
             
             // Use dynamic spawn (now returns position AND rotation for surface orientation)
-            var spawnData = dynamicSpawnSystem.GetBestSpawnPosition(player.gameObject, deathLocation, teammate);
+            var spawnData = dynamicSpawnSystem.GetBestSpawnPosition(player.gameObject, deathLocation, teammate, enemySnapshot);
             
             if (spawnData.HasValue)
             {
